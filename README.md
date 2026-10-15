@@ -4,8 +4,9 @@ A local MCP server and TypeScript library for incremental editing of existing
 Kdenlive projects. The first implementation preserves the original XML and
 changes selected timeline entries instead of regenerating the project.
 
-**Status:** functional preservation experiment, tested with Kdenlive 26.08.2 on
-macOS. This is not yet the complete narration, music and effects MVP.
+**Status:** cuts, clip volume/fades and insertion/replacement of existing bin audio
+are implemented and tested with Kdenlive 26.08.2 on macOS. The complete MVP is
+still in progress.
 
 ## Run locally
 
@@ -33,7 +34,7 @@ and continue editing it.
 | `project_open` | Open a saved project and return a session, revision, tracks, clips and media |
 | `project_info` | Inspect the current in-memory revision |
 | `project_validate` | Check recognized media paths and their availability |
-| `timeline_apply` | Apply a revision-checked batch of splits or range removals |
+| `timeline_apply` | Apply revision-checked cuts, audio settings or music edits |
 | `project_save_as` | Save to a new sibling `.kdenlive` without overwriting any file |
 | `project_close` | Release a session, discarding unsaved in-memory changes |
 
@@ -63,11 +64,39 @@ operation per track; combine multiple cuts in one `remove_ranges` operation.
 The entire batch rolls back on failure. Save with the returned revision and a
 new sibling path, such as `/absolute/path/to/project-folder/edited.kdenlive`.
 
+## Audio operations
+
+Use `set_clip_audio` with `clipId`, `gainDb`, `fadeInFrames` and `fadeOutFrames`.
+Gain accepts -60 through +20 dB. Each fade is zero (disabled) or at least two
+frames; their combined duration cannot exceed the clip. Only audio-only media
+and recognized MCP-created effect stacks are supported. Setting all three values
+to zero removes that stack. Other instances of the same source stay unchanged.
+
+Choose music sources from `project_info.media` where `inProjectBin` is true.
+The operation still validates audio eligibility and available source duration.
+
+```json
+{"type":"insert_audio_clip","trackId":"<audio track>","sourceId":"<bin source>","at":25,"sourceIn":0,"sourceOut":100}
+```
+
+Insertion fills a gap or appends to an audio track. It refuses overlap and never
+moves existing clips. `sourceOut` is exclusive. To replace an effect-free clip
+while retaining its position and duration:
+
+```json
+{"type":"replace_audio_clip","clipId":"<current clip>","sourceId":"<bin source>","sourceIn":50}
+```
+
+Reinspect the revision to obtain current clip handles after each edit. Apply
+insertion, replacement and audio settings on the same track in separate batches.
+New media must currently be imported using Kdenlive before opening the project
+through MCP.
+
 ## Compatibility and limits
 
 - Editing currently supports document version `1.1`, one sequence, two playlists
-  per track and one occupied playlist on the affected track.
-- Groups, mixes, user transitions, affected clip/track effects, nested sequences,
+  per track and at most one occupied playlist on the affected track.
+- Groups, mixes, user transitions, unknown affected effects, nested sequences,
   locked tracks and unmodeled track timing are explicitly refused.
 - Unrelated XML spans remain unchanged, including unknown properties and editor
   metadata. This does not prove compatibility with every Kdenlive feature.
@@ -81,16 +110,19 @@ new sibling path, such as `/absolute/path/to/project-folder/edited.kdenlive`.
 - A cleanup error can be reported after publication; inspect the destination
   before retrying. Existing files are always refused.
 - Media validation checks paths, not decodability or codec compatibility.
-- Volume/fades, music insertion/replacement, arbitrary effects, render jobs over
-  MCP and live editor control are not implemented yet.
+- Importing new media, arbitrary effects, render jobs over MCP and live editor
+  control are not implemented yet. Temporal cuts refuse affected clip effects;
+  replacement requires an effect-free target.
 - Linux and Windows native editor compatibility has not been verified.
 
 ## Verification and development
 
 ```sh
-pnpm check        # Type checking, 37 tests, build
+pnpm check        # Type checking, 71 tests, build
 pnpm test:stdio   # Real child-process MCP lifecycle
 pnpm test:native  # Render a trusted synthetic fixture through installed MLT
+pnpm test:audio   # Measure volume and fades in rendered audio
+pnpm test:music   # Measure insertion and replacement using two distinct tones
 ```
 
 Native acceptance requires Kdenlive/MLT and `ffprobe`. On macOS the default MLT

@@ -22,7 +22,8 @@
     "start": "node dist/cli.js",
     "test:native": "pnpm build && node scripts/native-acceptance.mjs",
     "test:stdio": "pnpm build && node scripts/stdio-acceptance.mjs",
-    "test:audio": "pnpm build && node scripts/audio-acceptance.mjs"
+    "test:audio": "pnpm build && node scripts/audio-acceptance.mjs",
+    "test:music": "pnpm build && node scripts/music-acceptance.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

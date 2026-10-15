@@ -60,9 +60,43 @@ try {
     audio.tracks.find((track) => track.id === "tractor1").clips[1].audio.gainDb,
     -9,
   );
-  await call("project_save_as", {
+  const music = await call("timeline_apply", {
     sessionId,
     expectedRevision: 2,
+    operations: [
+      {
+        type: "insert_audio_clip",
+        trackId: "tractor0",
+        sourceId: "chain1",
+        at: 25,
+        sourceIn: 0,
+        sourceOut: 100,
+      },
+    ],
+  });
+  assert.equal(
+    music.tracks.find((t) => t.id === "tractor0").clips[0].start,
+    25,
+  );
+  const replaced = await call("timeline_apply", {
+    sessionId,
+    expectedRevision: 3,
+    operations: [
+      {
+        type: "replace_audio_clip",
+        clipId: music.tracks.find((t) => t.id === "tractor0").clips[0].id,
+        sourceId: "chain1",
+        sourceIn: 50,
+      },
+    ],
+  });
+  assert.equal(
+    replaced.tracks.find((t) => t.id === "tractor0").clips[0].sourceIn,
+    50,
+  );
+  await call("project_save_as", {
+    sessionId,
+    expectedRevision: 4,
     path: join(folder, "edited.kdenlive"),
   });
   assert.equal(await readFile(original, "utf8"), source);
@@ -72,7 +106,7 @@ try {
   );
   await call("project_close", { sessionId });
   console.log(
-    "Stdio acceptance passed: six tools, cuts, audio controls, validation, exclusive save and original preserved.",
+    "Stdio acceptance passed: six tools, cuts, audio controls, music insertion/replacement, validation, exclusive save and original preserved.",
   );
 } finally {
   await client.close();

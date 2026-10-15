@@ -25,7 +25,17 @@ transactional in-memory changes and exclusive save-as persistence.
   copy in Kdenlive. Record results in `docs/verification.md`.
 - [x] Review implementation, fix findings, add README, example config and CI.
 
-No publication or commit is required for this local implementation. The review
+Local commits are required after verified increments; publication is not requested. The review
 agent found attribute parsing and unmodeled timing bugs; both were reproduced in
 failing tests and fixed. Its final review was interrupted by an account usage
 limit. Local review, automated tests and native acceptance were completed.
+
+## Audio increment — 2026-10-15
+
+- [x] Clip-local volume and fades with native editor round-trip and RMS checks.
+- [x] Existing-bin audio insertion into gaps and replacement preserving timing.
+- [x] Native music round-trip, spectral measurement and sequential MCP acceptance.
+- [x] Initialize Git and commit verified implementation chunks frequently.
+- [ ] Import new audio into the project bin through MCP.
+- [ ] Expand validated video/effect operations and expose render jobs through MCP.
+- [ ] Verify native editor behavior on Linux and Windows.

@@ -1,15 +1,16 @@
-# Verification — 2026-10-14
+# Verification — updated 2026-10-15
 
 ## Automated checks
 
 Local environment: macOS Apple Silicon, Node.js 24.18.1, pnpm 11.17.0,
 Kdenlive 26.08.2, bundled MLT 7.43.0.
 
-- `pnpm check`: strict TypeScript checking (including unused symbols), 37 tests
-  in three suites, and production build.
+- `pnpm check`: strict TypeScript checking (including unused symbols), 71 tests
+  in five suites, and production build.
 - `pnpm test:stdio`: the official MCP client launches the compiled CLI as a
   separate process. Discovery returns six tools; opening, removing a range,
-  validation, exclusive save and close complete successfully. Original bytes
+  audio settings, music insertion/replacement, validation, exclusive save and close
+  complete successfully. Original bytes
   remain unchanged.
 - `pnpm test:native`: render the original and edited native fixture with the
   installed Kdenlive MLT, then inspect the output using ffprobe. Both contain
@@ -79,7 +80,47 @@ ambiguous roots rather than claiming media resolution is safe.
 ## Limits of this evidence
 
 This validates the first preservation experiment, not the entire proposed MVP.
-There is no native acceptance yet for video, user effects/transitions, music
-insertion/replacement, volume/fades, multiple sequences, or Windows/Linux editor
-builds. The CI workflow is prepared for macOS and Linux unit/stdio checks but has
-not been run on GitHub. No remote publication, package release or commit was made.
+There is no native acceptance yet for video, user effects/transitions,
+multiple sequences, or Windows/Linux editor builds. The CI workflow is prepared for macOS and Linux unit/stdio checks but has
+not been run on GitHub. Git was initialized and local commits are now maintained. No remote publication
+or package release was made.
+
+## Clip audio and music acceptance
+
+Volume and fades are attached to timeline entries, preserving other instances
+of the same media. A native Save As retains the editable Volume, Fade in and
+Fade out stack. The checked-in `native-audio-26.08.2.kdenlive` fixture captures
+that native output with portable paths.
+
+`pnpm test:audio` measures a split 10-second synthetic tone. The unchanged half
+has RMS ratio 1; the -6 dB section measures 0.501227; the fade windows measure
+0.024111 and 0.043613. Generated and native-saved audio match. Native evidence:
+`.artifacts/audio-AqzLF8/report.json`; a later generated-output check is in
+`.artifacts/audio-RTnh0C/report.json`.
+
+`pnpm test:music` constructs a second original 880 Hz tone alongside the 440 Hz
+fixture. It inserts music at frames [25,125) on A2 and replaces [125,250) on A1.
+Spectral measurements confirm narration alone before insertion, both frequencies
+in the overlap, and music alone in the replaced section. Original project bytes
+remain unchanged and generated duration is exactly 250 frames (10 seconds).
+
+The generated project was opened in Kdenlive and saved as
+`.artifacts/music-0NjOjb/music-roundtrip.kdenlive`. Parsing the native save checks
+all three timeline/source ranges. Rendering it reproduces the same measured
+frequency amplitudes, about 0.12206 for each active tone. Evidence is in
+`.artifacts/music-njnRro/report.json`. These synthetic tests validate existing-bin
+audio operations, not arbitrary media import or codec compatibility.
+
+Native Save As adds one frame to this fixture's sequence/wrapper duration:
+rendered output becomes 10.04 seconds while clip ranges still end at frame 250.
+The same extra frame occurs after saving the unedited original in Kdenlive;
+`audio-acceptance.mjs` compares the native edited copy against that native control.
+The music round-trip check explicitly asserts this observed duration rather than
+silently accepting arbitrary duration changes. This remains a fixture/editor
+compatibility limitation, not a claim of byte-preserving native saves.
+
+The sequential MCP acceptance exposed a parser boundary bug when adjacent closing
+tags have no whitespace. The parser now excludes the following tag from its
+closing-span lookup. A regression inserts and then replaces the same clip.
+Replacement also refuses source links and identity comments that would otherwise
+be discarded; both protections have regression tests.
