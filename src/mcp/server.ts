@@ -128,6 +128,21 @@ export function createServer(workspace: Workspace): McpServer {
     ({ sessionId }) => result(() => workspace.validate(sessionId)),
   );
   server.registerTool(
+    "project_import_audio",
+    {
+      description:
+        "Import a local PCM16 mono/stereo WAV into the project bin. Path must be absolute and inside allowed roots. Adds a reference without modifying media or timeline. Returns sourceId and durationFrames for insertion. Save As is required to persist the project.",
+      inputSchema: {
+        sessionId,
+        expectedRevision: frame,
+        path: z.string().min(1),
+      },
+      annotations: edit,
+    },
+    ({ sessionId, expectedRevision, path }) =>
+      result(() => workspace.importAudio(sessionId, expectedRevision, path)),
+  );
+  server.registerTool(
     "timeline_apply",
     {
       description:

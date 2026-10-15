@@ -30,6 +30,7 @@ it("exercises an MCP editing session, schemas, errors, saving and closing", asyn
       "project_open",
       "project_info",
       "project_validate",
+      "project_import_audio",
       "timeline_apply",
       "project_save_as",
       "project_close",

@@ -1,3 +1,4 @@
+import { importAudio, type AudioImport } from "./import-audio.js";
 import { inspectAudio } from "./audio.js";
 import { editBatch, type Operation } from "./editing.js";
 import { requireCondition } from "./errors.js";
@@ -48,6 +49,21 @@ export class Project {
             (entry) => entry.attributes.producer === n.attributes.id,
           ),
         })),
+    };
+  }
+  importAudio(expectedRevision: number, media: AudioImport) {
+    requireCondition(
+      expectedRevision === this.revision,
+      "REVISION_CONFLICT",
+      "Import revision does not match current revision",
+    );
+    const imported = importAudio(this.#xml, media);
+    this.#xml = imported.xml;
+    this.#revision++;
+    return {
+      ...this.info(),
+      sourceId: imported.sourceId,
+      durationFrames: imported.durationFrames,
     };
   }
   apply(expectedRevision: number, operations: Operation[]) {

@@ -27,7 +27,7 @@ try {
   await writeFile(original, source);
   await copyFile("tests/fixtures/tone.wav", join(folder, "tone.wav"));
   await client.connect(transport);
-  assert.equal((await client.listTools()).tools.length, 6);
+  assert.equal((await client.listTools()).tools.length, 7);
   const { sessionId } = await call("project_open", { path: original });
   const edited = await call("timeline_apply", {
     sessionId,
@@ -94,9 +94,28 @@ try {
     replaced.tracks.find((t) => t.id === "tractor0").clips[0].sourceIn,
     50,
   );
-  await call("project_save_as", {
+  await copyFile("tests/fixtures/tone.wav", join(folder, "imported.wav"));
+  const imported = await call("project_import_audio", {
     sessionId,
     expectedRevision: 4,
+    path: join(folder, "imported.wav"),
+  });
+  assert.equal(imported.durationFrames, 250);
+  await call("timeline_apply", {
+    sessionId,
+    expectedRevision: 5,
+    operations: [
+      {
+        type: "replace_audio_clip",
+        clipId: replaced.tracks.find((t) => t.id === "tractor0").clips[0].id,
+        sourceId: imported.sourceId,
+        sourceIn: 25,
+      },
+    ],
+  });
+  await call("project_save_as", {
+    sessionId,
+    expectedRevision: 6,
     path: join(folder, "edited.kdenlive"),
   });
   assert.equal(await readFile(original, "utf8"), source);
@@ -106,7 +125,7 @@ try {
   );
   await call("project_close", { sessionId });
   console.log(
-    "Stdio acceptance passed: six tools, cuts, audio controls, music insertion/replacement, validation, exclusive save and original preserved.",
+    "Stdio acceptance passed: seven tools, cuts, audio controls, music import/insertion/replacement, validation, exclusive save and original preserved.",
   );
 } finally {
   await client.close();

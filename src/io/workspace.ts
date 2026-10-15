@@ -1,3 +1,4 @@
+import { inspectWave } from "./wave.js";
 import { createHash, randomUUID } from "node:crypto";
 import { link, open, realpath, stat, unlink } from "node:fs/promises";
 import {
@@ -162,14 +163,82 @@ export class Workspace {
   }
   apply(id: string, revision: number, operations: Operation[]) {
     const session = this.session(id);
-    requireCondition(!session.busy, "SESSION_BUSY", "Session is saving");
+    requireCondition(
+      !session.busy,
+      "SESSION_BUSY",
+      "Session has an operation in progress",
+    );
     return { sessionId: id, ...session.project.apply(revision, operations) };
+  }
+  async importAudio(id: string, revision: number, path: string) {
+    const session = this.session(id);
+    requireCondition(
+      !session.busy,
+      "SESSION_BUSY",
+      "Session has an operation in progress",
+    );
+    requireCondition(
+      revision === session.project.revision,
+      "REVISION_CONFLICT",
+      "Import revision does not match current revision",
+    );
+    requireCondition(
+      isAbsolute(path),
+      "INVALID_PATH",
+      "Audio path must be absolute",
+    );
+    session.busy = true;
+    try {
+      const canonical = await this.existing(path);
+      const doc = parseXml(session.project.xml);
+      for (const media of session.project
+        .info()
+        .media.filter(
+          (m) =>
+            m.inProjectBin &&
+            ["avformat", "avformat-novalidate"].includes(m.service),
+        )) {
+        if (
+          !isAbsolute(media.resource) &&
+          !isAbsolute(doc.root.attributes.root ?? "")
+        )
+          continue;
+        const existingPath = resolve(
+          doc.root.attributes.root || dirname(session.source),
+          media.resource,
+        );
+        let resolved: string;
+        try {
+          resolved = await realpath(existingPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw error;
+        }
+        requireCondition(
+          resolved !== canonical,
+          "DUPLICATE_MEDIA",
+          "Audio is already in the project bin",
+        );
+      }
+      const wave = await inspectWave(canonical);
+      return {
+        sessionId: id,
+        ...session.project.importAudio(revision, {
+          ...wave,
+          path: canonical,
+          name: basename(canonical),
+          uuid: `{${randomUUID()}}`,
+        }),
+      };
+    } finally {
+      session.busy = false;
+    }
   }
   close(id: string) {
     requireCondition(
       !this.session(id).busy,
       "SESSION_BUSY",
-      "Session is saving",
+      "Session has an operation in progress",
     );
     this.#sessions.delete(id);
     return { closed: true };
@@ -263,7 +332,11 @@ export class Workspace {
   }
   async saveAs(id: string, revision: number, output: string) {
     const session = this.session(id);
-    requireCondition(!session.busy, "SESSION_BUSY", "Session is saving");
+    requireCondition(
+      !session.busy,
+      "SESSION_BUSY",
+      "Session has an operation in progress",
+    );
     requireCondition(
       revision === session.project.revision,
       "REVISION_CONFLICT",
