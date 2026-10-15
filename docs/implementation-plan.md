@@ -36,6 +36,9 @@ limit. Local review, automated tests and native acceptance were completed.
 - [x] Existing-bin audio insertion into gaps and replacement preserving timing.
 - [x] Native music round-trip, spectral measurement and sequential MCP acceptance.
 - [x] Initialize Git and commit verified implementation chunks frequently.
-- [ ] Import new audio into the project bin through MCP.
+- [x] Import local PCM16 mono/stereo WAV references into the bin through MCP;
+  validate import/insertion/replacement via stdio and native audio evidence.
+- [x] Reject corrupted FourCC identifiers and reconcile README/checklists with
+  the implemented seven-tool server and 105-test suite.
 - [ ] Expand validated video/effect operations and expose render jobs through MCP.
 - [ ] Verify native editor behavior on Linux and Windows.

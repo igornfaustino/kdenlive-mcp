@@ -24,13 +24,20 @@ Duplicate paths are rejected; importing through canonical paths makes repeated
 imports unambiguous. Existing relative references use an absolute XML root.
 
 Implementation plan:
-- [ ] Failing tests for RIFF boundaries, metadata chunks, formats and durations;
+- [x] Failing tests for RIFF boundaries, metadata chunks, formats and durations;
       implement src/io/wave.ts without loading audio payloads.
-- [ ] Failing core/workspace tests for preservation, collisions, invalid paths,
+- [x] Failing core/workspace tests for preservation, collisions, invalid paths,
       rollback and busy sessions; implement core import and Workspace method.
-- [ ] Expose MCP tool; test actual stdio import -> insert -> save lifecycle.
-- [ ] Native render and Kdenlive Save As acceptance using a newly imported tone.
-- [ ] Update README/evidence and commit verified increments.
+- [x] Expose MCP tool; test stdio import -> replace -> save and existing-bin
+      insertion; test import -> insert -> save in Workspace integration.
+- [x] Native render and Kdenlive Save As acceptance using a newly imported tone.
+- [x] Update README/evidence and commit verified increments.
+
+Implementation: `659fdf2`; FourCC correction: `d992ca7`; real-import music
+acceptance: `329d243`. The native copy retained its imported bin entry, 250-frame
+source duration and timeline ranges. The known one-frame wrapper extension also
+occurs in the unedited native control. See [verification](verification.md) for
+the separate automated and native evidence; no general codec support is implied.
 
 General codecs via ffprobe are deferred to keep this first import dependency-free.
 Calling native Kdenlive import would require a running editor and a separate live

@@ -4,9 +4,10 @@ A local MCP server and TypeScript library for incremental editing of existing
 Kdenlive projects. The first implementation preserves the original XML and
 changes selected timeline entries instead of regenerating the project.
 
-**Status:** cuts, clip volume/fades and insertion/replacement of existing bin audio
-are implemented and tested with Kdenlive 26.08.2 on macOS. The complete MVP is
-still in progress.
+**Status:** cuts, clip volume/fades, local PCM16 WAV import and audio
+insertion/replacement are implemented. Synthetic audio fixtures have been tested
+with Kdenlive 26.08.2 on macOS. The complete MVP is still in progress; see
+[current status](docs/STATUS.md) for supported structures and evidence limits.
 
 ## Run locally
 
@@ -34,6 +35,7 @@ and continue editing it.
 | `project_open` | Open a saved project and return a session, revision, tracks, clips and media |
 | `project_info` | Inspect the current in-memory revision |
 | `project_validate` | Check recognized media paths and their availability |
+| `project_import_audio` | Add a local PCM16 WAV reference to the bin and return its source ID and duration |
 | `timeline_apply` | Apply revision-checked cuts, audio settings or music edits |
 | `project_save_as` | Save to a new sibling `.kdenlive` without overwriting any file |
 | `project_close` | Release a session, discarding unsaved in-memory changes |
@@ -89,8 +91,31 @@ while retaining its position and duration:
 
 Reinspect the revision to obtain current clip handles after each edit. Apply
 insertion, replacement and audio settings on the same track in separate batches.
-New media must currently be imported using Kdenlive before opening the project
-through MCP.
+
+## Import local audio
+
+Call `project_import_audio` with the current session and revision:
+
+```json
+{
+  "sessionId": "<session UUID>",
+  "expectedRevision": 0,
+  "path": "/absolute/path/to/media/music.wav"
+}
+```
+
+The response contains `sourceId`, `durationFrames` and updated project information,
+including `revision`. Use `sourceId` and `revision` in a subsequent `timeline_apply`
+insertion or replacement, then save using the revision returned by that edit.
+Import adds the media to the bin; it does not place a clip on the timeline.
+
+The file must be within an allowed root. Import stores an absolute reference
+without copying or converting the media, so retain the source file. The initial
+support is classic little-endian RIFF/WAV, integer PCM16, mono or stereo, with
+consistent headers and a nonempty data chunk. Duration is rounded down to whole
+project frames; files shorter than one frame are refused. Float, compressed,
+extensible WAV and RF64 are unsupported. Reimporting the same canonical path is
+refused. Import failures leave XML and revision unchanged.
 
 ## Compatibility and limits
 
@@ -110,25 +135,27 @@ through MCP.
 - A cleanup error can be reported after publication; inspect the destination
   before retrying. Existing files are always refused.
 - Media validation checks paths, not decodability or codec compatibility.
-- Importing new media, arbitrary effects, render jobs over MCP and live editor
-  control are not implemented yet. Temporal cuts refuse affected clip effects;
-  replacement requires an effect-free target.
+- Importing formats beyond the WAV subset above, arbitrary effects, render jobs
+  over MCP and live editor control are not implemented yet. Temporal cuts refuse
+  affected clip effects; replacement requires an effect-free target.
 - Linux and Windows native editor compatibility has not been verified.
 
 ## Verification and development
 
 ```sh
-pnpm check        # Type checking, 71 tests, build
+pnpm check        # Type checking, 105 tests in seven suites, build
 pnpm test:stdio   # Real child-process MCP lifecycle
 pnpm test:native  # Render a trusted synthetic fixture through installed MLT
 pnpm test:audio   # Measure volume and fades in rendered audio
-pnpm test:music   # Measure insertion and replacement using two distinct tones
+pnpm test:music   # Import a second tone; measure insertion and replacement
 ```
 
 Native acceptance requires Kdenlive/MLT and `ffprobe`. On macOS the default MLT
 path is `/Applications/kdenlive.app/Contents/MacOS/melt`; elsewhere it is `melt`.
-Override with `MELT_PATH` and `FFPROBE_PATH`. The script writes originals, edited
-copies, rendered videos and a report under `.artifacts/native-*`. Reopening the
+Override melt with `MELT_PATH`; the video script also accepts `FFPROBE_PATH`.
+Scripts write projects, rendered media, logs and reports under `.artifacts/`.
+To measure a previously saved native import copy, run
+`pnpm test:music /absolute/path/to/import-roundtrip.kdenlive`. Reopening the
 copy in Kdenlive is a separate manual check. Normal tests do not require Kdenlive.
 
 - [Research and alternatives](docs/research.md)

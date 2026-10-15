@@ -1,9 +1,9 @@
 # Estado do projeto
 
-Análise em **2026-10-15**, baseada nos arquivos reais do checkout. Referência de
-implementação no histórico: `659fdf2` (`feat: import local PCM WAV audio into the
-project bin`). Este documento descreve também alterações locais existentes antes
-da tarefa documental; não implica que elas já estejam commitadas.
+Atualizado em **2026-10-15**, baseado nos arquivos reais do checkout. Importação:
+`659fdf2`; correção FourCC: `d992ca7`; aceitação com importação real: `329d243`.
+As alterações locais descritas no histórico abaixo já foram commitadas. README,
+checklists e evidências foram reconciliados no fechamento desta etapa.
 
 ## Resumo
 
@@ -33,7 +33,7 @@ foi corrigido. O suporte continua limitado ao subconjunto WAV documentado.
 | Arquivos/sessões | Raízes canônicas, symlinks, até 32 sessões, busy em save/import, inspeção de mídia e detecção de alteração do projeto original | `src/io/workspace.ts` |
 | Save As | Novo arquivo irmão, temporário exclusivo sincronizado, publicação por hard link e recusa de sobrescrita | `src/io/workspace.ts` |
 | Integração MCP | Schemas Zod, resultados estruturados e erros com código/mensagem | `src/mcp/server.ts` |
-| Desenvolvimento | Seis suítes Vitest, scripts de aceitação, workflow Ubuntu/macOS e dez skills locais preferidas | `tests/`, `scripts/`, `.github/workflows/check.yml`, `.agents/skills/` |
+| Desenvolvimento | Sete suítes Vitest, scripts de aceitação, workflow Ubuntu/macOS e dez skills locais preferidas | `tests/`, `scripts/`, `.github/workflows/check.yml`, `.agents/skills/` |
 
 ### Ferramentas MCP existentes
 
@@ -83,7 +83,7 @@ O arquivo de mídia original é referenciado, sem cópia ou transcodificação.
   contra substituição hostil concorrente de diretórios. Uma falha de limpeza pode
   ser reportada após o destino já ter sido publicado.
 
-## Correção FourCC e trabalho incompleto
+## Correção FourCC e histórico da importação
 
 ### FourCC WAV: corrigido em 2026-10-15
 
@@ -100,7 +100,7 @@ identificadores e exigindo o código `INVALID_AUDIO`. Todos falharam antes da
 correção e passaram depois; WAV válido e chunks adicionais continuam cobertos
 pelos testes de importação existentes.
 
-### Alterações locais preexistentes
+### Alterações locais preexistentes — agora commitadas
 
 Antes de criar esta documentação, `git status --short` mostrava:
 
@@ -114,14 +114,16 @@ script modificado já produziu evidência local bem-sucedida; na análise docume
 os quatro testes de corrupção ainda falhavam. A lista acima é um retrato da análise, não uma
 promessa de que o checkout continuará nesse estado.
 
-### Documentação anterior desatualizada
+No fechamento da etapa, o checkout estava limpo: os testes de importação fazem
+parte de `d992ca7`, e o script de aceitação faz parte de `329d243`.
 
-`README.md` ainda lista seis ferramentas, 71 testes e diz que importar mídia não
-está implementado. `docs/verification.md` preserva contagens antigas;
-`docs/implementation-plan.md` mantém importação desmarcada e
-`docs/import-audio-design.md` ainda tem checkboxes de implementação abertos.
-Esses textos não refletem integralmente `659fdf2`. Foram mantidos nesta tarefa;
-use o código e este STATUS para distinguir implementação, plano e evidência.
+### Documentação reconciliada
+
+`README.md` agora lista sete ferramentas, 105 testes e o fluxo de importação WAV,
+incluindo revisão, inserção explícita e Save As. `docs/verification.md` registra
+a checagem atual e a nova medição da cópia nativa existente;
+`docs/implementation-plan.md` e `docs/import-audio-design.md` marcam a importação
+limitada como entregue. Outros codecs, vídeo/efeitos e jobs MCP seguem pendentes.
 
 ## Testes existentes e resultados observados
 
@@ -156,6 +158,9 @@ também passou, incluindo seu build e o fluxo MCP em processo separado.
 A contagem inclui os quatro testes locais preexistentes de importação e os
 16 novos casos de `tests/wave.test.ts`. Não houve nova aceitação pela interface
 do Kdenlive nesta correção de cabeçalhos.
+
+No fechamento documental, `pnpm check` e `pnpm test:stdio` foram executados
+novamente e passaram, incluindo os 105 testes e build.
 
 ### Scripts de aceitação
 
@@ -196,6 +201,11 @@ Isso é uma limitação conhecida dessa evidência; não demonstra duração arb
 correta em todo projeto. Aceitação de vídeo, efeitos/transições de usuário,
 múltiplas sequências e editor nativo Linux/Windows permanece não verificada.
 
+O fechamento repetiu `pnpm test:music` com a cópia nativa existente acima.
+`.artifacts/music-OELDdh/report.json` confirma os mesmos ranges, duração de
+250 frames no bin e amplitudes, com 10 segundos na saída gerada e 10,04 segundos
+na cópia nativa. Não houve nova abertura/gravação pela GUI nesta etapa.
+
 CI está configurado em `.github/workflows/check.yml` para Ubuntu/macOS, Node.js
 24, `pnpm check` e `pnpm test:stdio`. Não há evidência nesta análise de execução
 remota do workflow. O pacote está marcado `private: true`; não há fluxo de release
@@ -205,16 +215,17 @@ configurado nos arquivos inspecionados.
 
 Esta lista é orientação futura, não trabalho realizado nesta tarefa:
 
-1. Finalizar/revisar as alterações locais da aceitação de importação e atualizar
-   README, checklist e evidências com sete ferramentas e resultados reais.
-2. Ampliar importação para outros formatos de áudio apenas com uma estratégia
+O fechamento da importação WAV e a atualização documental estão concluídos.
+Próximas etapas:
+
+1. Ampliar importação para outros formatos de áudio apenas com uma estratégia
    explícita de inspeção/validação; não há integração ffprobe em produção hoje.
-3. Planejar operações de vídeo e efeitos/transições além do subconjunto atual,
+2. Planejar operações de vídeo e efeitos/transições além do subconjunto atual,
    incluindo fixtures e aceitação no editor. Cortes genéricos de playlists não
    constituem uma suíte nativa de vídeo validada.
-4. Planejar ferramentas MCP de renderização e seu ciclo de execução; os scripts
+3. Planejar ferramentas MCP de renderização e seu ciclo de execução; os scripts
    de desenvolvimento existentes ainda não implementam jobs MCP.
-5. Validar o editor nativo em Linux/Windows e executar a CI remotamente quando
+4. Validar o editor nativo em Linux/Windows e executar a CI remotamente quando
    houver um fluxo de publicação autorizado.
 
 Não existem ferramentas para criar projeto do zero, gerar narração, detectar

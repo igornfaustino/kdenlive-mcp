@@ -5,13 +5,14 @@
 Local environment: macOS Apple Silicon, Node.js 24.18.1, pnpm 11.17.0,
 Kdenlive 26.08.2, bundled MLT 7.43.0.
 
-- `pnpm check`: strict TypeScript checking (including unused symbols), 71 tests
-  in five suites, and production build.
+- `pnpm check`: strict TypeScript checking (including unused symbols), 105 tests
+  in seven suites, and production build; rerun successfully on 2026-10-15 after
+  the FourCC fix and real-import acceptance script were committed.
 - `pnpm test:stdio`: the official MCP client launches the compiled CLI as a
-  separate process. Discovery returns six tools; opening, removing a range,
-  audio settings, music insertion/replacement, validation, exclusive save and close
-  complete successfully. Original bytes
-  remain unchanged.
+  separate process. Discovery returns seven tools; opening, removing a range,
+  audio settings, WAV import, music insertion/replacement, validation, exclusive
+  save and close complete successfully. Original bytes remain unchanged. Rerun
+  successfully on 2026-10-15 during import closeout.
 - `pnpm test:native`: render the original and edited native fixture with the
   installed Kdenlive MLT, then inspect the output using ffprobe. Both contain
   audio; frame counts are exactly 250 and 175 at 25 fps.
@@ -26,6 +27,12 @@ UTF-8/size limits, concurrent exclusive saves and MCP errors.
 
 The two populated-track and gap tests synthesize structural variants of the
 native fixture; they are unit checks, not a native video acceptance claim.
+
+Import tests additionally cover WAV metadata and chunk boundaries, supported
+mono/stereo PCM16, invalid formats, duration flooring, duplicate canonical paths,
+ID collisions, XML preservation, rollback and busy sessions. Sixteen focused
+FourCC cases corrupt each byte of RIFF, WAVE, fmt and data, requiring
+`INVALID_AUDIO`; four integration cases also cover this regression.
 
 ## Native editor acceptance
 
@@ -124,3 +131,23 @@ tags have no whitespace. The parser now excludes the following tag from its
 closing-span lookup. A regression inserts and then replaces the same clip.
 Replacement also refuses source links and identity comments that would otherwise
 be discarded; both protections have regression tests.
+
+## Local WAV import closeout — 2026-10-15
+
+The music script now calls `Workspace.importAudio` for the new 880 Hz WAV rather
+than constructing a bin source artificially. It imports, splits the narration,
+inserts on A2, replaces on A1 and saves a new project. The prior native Save As
+copy is `.artifacts/music-OHqsWj/import-roundtrip.kdenlive`.
+
+A fresh `pnpm test:music` run with that native copy passed; its report is
+`.artifacts/music-OELDdh/report.json`. The script checks the native bin entry
+and source length (250 frames), plus all three timeline/source ranges. Original
+and generated output measure 10 seconds; the native copy measures 10.04 seconds,
+retaining the known wrapper extension. Generated and native copies have matching
+active-tone amplitudes: approximately 0.122057 at 440 Hz and 0.122064 at 880 Hz.
+The script also confirms that the original project and imported WAV bytes remain
+unchanged.
+
+This run rendered and inspected a previously saved native copy. It did not open
+or save a new copy through the GUI. Native acceptance remains specific to the
+synthetic PCM16 fixture, macOS and the documented editor version.
