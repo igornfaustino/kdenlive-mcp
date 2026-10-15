@@ -10,11 +10,12 @@ da tarefa documental; não implica que elas já estejam commitadas.
 Existe uma biblioteca TypeScript funcional e um servidor MCP por stdio para
 editar projetos Kdenlive salvos, preservando spans de XML não afetados. Cortes,
 volume/fades, posicionamento de áudio e importação limitada de WAV estão no
-código. O projeto completo ainda está em desenvolvimento e a suíte atual está
-**vermelha: 85 testes passam e quatro falham**, em seis arquivos de teste.
+código. O projeto completo ainda está em desenvolvimento. Após a correção
+FourCC descrita abaixo, **105 testes passam**, em sete arquivos de teste;
+checagem de tipos, build e aceitação stdio também passaram.
 
-A importação já está implementada, mas sua validação de cabeçalhos tem um bug
-confirmado. Não deve ser descrita como suporte geral a arquivos de áudio.
+A importação já está implementada e o bug confirmado de identificadores FourCC
+foi corrigido. O suporte continua limitado ao subconjunto WAV documentado.
 
 ## Implementado no código
 
@@ -82,19 +83,22 @@ O arquivo de mídia original é referenciado, sem cópia ou transcodificação.
   contra substituição hostil concorrente de diretórios. Uma falha de limpeza pode
   ser reportada após o destino já ter sido publicado.
 
-## Bug confirmado e trabalho incompleto
+## Correção FourCC e trabalho incompleto
 
-### FourCC WAV aceita bytes corrompidos
+### FourCC WAV: corrigido em 2026-10-15
 
-`src/io/wave.ts` usa `Buffer.toString("ascii")` para comparar RIFF, WAVE e os
+`src/io/wave.ts` usava `Buffer.toString("ascii")` para comparar RIFF, WAVE e os
 identificadores de chunks. Essa decodificação remove o bit alto; um byte alterado
 com `| 0x80` pode ser reconhecido como se fosse o identificador original.
 
 Os quatro casos locais em `tests/import.test.ts` alteram os offsets 0, 8, 12 e
-36 da fixture e esperam rejeição. Todos falham porque `inspectWave` aceita o
-arquivo. A falha foi reproduzida na análise atual; nenhuma correção foi feita
-nesta tarefa documental. Próxima correção sugerida: comparação exata de bytes ou
-outra leitura que preserve todos os bits, mantendo os testes de regressão.
+36 da fixture e esperam rejeição. As quatro falhas foram reproduzidas antes da
+correção. A leitura agora usa `latin1`, que preserva todos os bits e impede que
+identificadores corrompidos sejam reconhecidos como RIFF, WAVE, fmt ou data.
+`tests/wave.test.ts` acrescenta 16 casos, cobrindo cada byte desses quatro
+identificadores e exigindo o código `INVALID_AUDIO`. Todos falharam antes da
+correção e passaram depois; WAV válido e chunks adicionais continuam cobertos
+pelos testes de importação existentes.
 
 ### Alterações locais preexistentes
 
@@ -102,12 +106,12 @@ Antes de criar esta documentação, `git status --short` mostrava:
 
 | Arquivo | Alteração ainda fora de commit |
 | --- | --- |
-| `tests/import.test.ts` | Quatro testes de regressão FourCC, atualmente falhando |
+| `tests/import.test.ts` | Quatro testes de regressão FourCC, agora passando após a correção |
 | `scripts/music-acceptance.mjs` | Troca da montagem artificial do bin por Workspace.importAudio e verificações da duração do bin após Save As nativo |
 
 Esses arquivos não foram alterados nem incluídos no commit desta tarefa. O
-script modificado já produziu evidência local bem-sucedida, mas isso não resolve
-os quatro testes de corrupção. A lista acima é um retrato da análise, não uma
+script modificado já produziu evidência local bem-sucedida; na análise documental,
+os quatro testes de corrupção ainda falhavam. A lista acima é um retrato da análise, não uma
 promessa de que o checkout continuará nesse estado.
 
 ### Documentação anterior desatualizada
@@ -130,9 +134,10 @@ use o código e este STATUS para distinguir implementação, plano e evidência.
 | `tests/music.test.ts` | Faixa vazia, preenchimento de blank, anexação/duração, sobreposição, fontes/ranges inválidos, substituição e preservação de metadados |
 | `tests/workspace.test.ts` | Save As exclusivo, alteração externa, revisões, traversal/symlinks, mídia ausente/proibida, roots ambíguos, limites e corrida de saves |
 | `tests/mcp.test.ts` | Cliente/servidor in-memory: descoberta das sete ferramentas, edição, schemas/erros, validação, save e close |
-| `tests/import.test.ts` | WAV/metadados, formatos inválidos, importação/inserção/save, duplicatas/aliases, rollback, busy, preservação, estéreo e os quatro casos FourCC vermelhos |
+| `tests/import.test.ts` | WAV/metadados, formatos inválidos, importação/inserção/save, duplicatas/aliases, rollback, busy, preservação, estéreo e os quatro casos FourCC locais |
+| `tests/wave.test.ts` | Rejeição de corrupção em cada byte dos quatro identificadores FourCC obrigatórios, com código INVALID_AUDIO |
 
-Na análise de 2026-10-15:
+Na análise documental de 2026-10-15, antes da correção FourCC:
 
 - `pnpm check`: checagem de tipos passou; Vitest executou **89 testes: 85 passaram,
   quatro falharam**, todos no caso FourCC de importação. Cinco arquivos passaram,
@@ -144,6 +149,13 @@ Na análise de 2026-10-15:
 Não há script de lint ou meta de cobertura configurados. Os testes normais não
 exigem Kdenlive instalado. A presença de testes para um comportamento não
 significa que todos os arquivos Kdenlive que o usam sejam compatíveis.
+
+Após a correção FourCC, no mesmo dia, `pnpm check` passou por todas as etapas:
+checagem de tipos, **105 testes em sete arquivos** e build. `pnpm test:stdio`
+também passou, incluindo seu build e o fluxo MCP em processo separado.
+A contagem inclui os quatro testes locais preexistentes de importação e os
+16 novos casos de `tests/wave.test.ts`. Não houve nova aceitação pela interface
+do Kdenlive nesta correção de cabeçalhos.
 
 ### Scripts de aceitação
 
@@ -193,18 +205,16 @@ configurado nos arquivos inspecionados.
 
 Esta lista é orientação futura, não trabalho realizado nesta tarefa:
 
-1. Corrigir o bug FourCC e tornar verdes os quatro testes existentes; executar
-   typecheck, suite, build e stdio novamente antes de afirmar conclusão.
-2. Finalizar/revisar as alterações locais da aceitação de importação e atualizar
+1. Finalizar/revisar as alterações locais da aceitação de importação e atualizar
    README, checklist e evidências com sete ferramentas e resultados reais.
-3. Ampliar importação para outros formatos de áudio apenas com uma estratégia
+2. Ampliar importação para outros formatos de áudio apenas com uma estratégia
    explícita de inspeção/validação; não há integração ffprobe em produção hoje.
-4. Planejar operações de vídeo e efeitos/transições além do subconjunto atual,
+3. Planejar operações de vídeo e efeitos/transições além do subconjunto atual,
    incluindo fixtures e aceitação no editor. Cortes genéricos de playlists não
    constituem uma suíte nativa de vídeo validada.
-5. Planejar ferramentas MCP de renderização e seu ciclo de execução; os scripts
+4. Planejar ferramentas MCP de renderização e seu ciclo de execução; os scripts
    de desenvolvimento existentes ainda não implementam jobs MCP.
-6. Validar o editor nativo em Linux/Windows e executar a CI remotamente quando
+5. Validar o editor nativo em Linux/Windows e executar a CI remotamente quando
    houver um fluxo de publicação autorizado.
 
 Não existem ferramentas para criar projeto do zero, gerar narração, detectar

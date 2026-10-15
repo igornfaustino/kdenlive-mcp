@@ -40,8 +40,8 @@ export async function inspectWave(path: string): Promise<WaveInfo> {
     }
     const header = await read(0, 12);
     requireCondition(
-      header.toString("ascii", 0, 4) === "RIFF" &&
-        header.toString("ascii", 8, 12) === "WAVE" &&
+      header.toString("latin1", 0, 4) === "RIFF" &&
+        header.toString("latin1", 8, 12) === "WAVE" &&
         header.readUInt32LE(4) + 8 === before.size,
       "INVALID_AUDIO",
       "Expected a complete little-endian RIFF WAVE file",
@@ -58,7 +58,7 @@ export async function inspectWave(path: string): Promise<WaveInfo> {
       );
       const chunk = await read(offset, 8),
         size = chunk.readUInt32LE(4),
-        name = chunk.toString("ascii", 0, 4);
+        name = chunk.toString("latin1", 0, 4);
       const end = offset + 8 + size + (size % 2);
       requireCondition(
         end <= before.size,
