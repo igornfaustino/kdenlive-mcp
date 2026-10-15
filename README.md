@@ -30,15 +30,41 @@ and continue editing it.
 
 ## Tools
 
-| Tool | Purpose |
-| --- | --- |
-| `project_open` | Open a saved project and return a session, revision, tracks, clips and media |
-| `project_info` | Inspect the current in-memory revision |
-| `project_validate` | Check recognized media paths and their availability |
-| `project_import_audio` | Add a local PCM16 WAV reference to the bin and return its source ID and duration |
-| `timeline_apply` | Apply revision-checked cuts, audio settings or music edits |
-| `project_save_as` | Save to a new sibling `.kdenlive` without overwriting any file |
-| `project_close` | Release a session, discarding unsaved in-memory changes |
+These are the **seven implemented MCP tools**. All seven are covered by automated
+tests and the real-process stdio acceptance flow. Native editor evidence is
+listed separately under [Validated behavior](#validated-behavior).
+
+| Tool | Input | Implemented behavior |
+| --- | --- | --- |
+| `project_open` | `path` | Open a saved `.kdenlive` within allowed roots; return session UUID, revision and project information |
+| `project_info` | `sessionId` | Inspect the current in-memory revision, document version, rational FPS, sequence ID/count, duration, tracks, clips, clip audio settings and media/bin membership |
+| `project_validate` | `sessionId` | Report recognized media as `present`, `missing`, `forbidden`, `generated` or `unsupported`, with an aggregate `valid` result |
+| `project_import_audio` | `sessionId`, `expectedRevision`, `path` | Add a local PCM16 mono/stereo WAV reference to the bin; return `sourceId`, `durationFrames` and updated information/revision |
+| `timeline_apply` | `sessionId`, `expectedRevision`, `operations` | Atomically apply the five operations below and return updated information/revision |
+| `project_save_as` | `sessionId`, `expectedRevision`, `path` | Save the current revision to a new sibling `.kdenlive`; return path, revision, byte count and confirmation that the source was preserved |
+| `project_close` | `sessionId` | Release a session and discard unsaved in-memory changes |
+
+### Timeline operations
+
+| Operation | Fields besides `type` | Implemented behavior |
+| --- | --- | --- |
+| `remove_ranges` | `trackId`, `ranges: [{start, end}]` | Remove one or more timeline ranges, including ranges spanning blanks/clips; close gaps only on that track and update duration |
+| `split_clip` | `clipId`, `offset` | Split an entry at an offset relative to the clip; retain total duration and continuous source ranges |
+| `set_clip_audio` | `clipId`, `gainDb`, `fadeInFrames`, `fadeOutFrames` | Set, reconfigure or remove managed clip-local volume/fades without changing other instances of the source |
+| `insert_audio_clip` | `trackId`, `sourceId`, `at`, `sourceIn`, `sourceOut` | Insert audio from the bin into an empty track, fill a blank or append; preserve existing clip positions and extend project duration if needed |
+| `replace_audio_clip` | `clipId`, `sourceId`, `sourceIn` | Replace the source of an eligible audio clip, retaining its timeline position and duration |
+
+MCP batches accept 1–100 operations, with at most one operation per track.
+Each `remove_ranges` accepts 1–1000 ranges. Insertion refuses overlap;
+replacement requires an effect-free target and enough source frames. Removing
+the entire duration of a track is refused. These operations do not implement
+automatic silence detection or editorial selection of ranges.
+
+Successful import/edit calls advance the revision. Import, edit and save require
+`expectedRevision`; stale revisions are rejected. A failed import or edit leaves
+XML and revision unchanged. Save/import lock the session against competing
+mutations or closing. Tool results include structured data; action errors return
+`isError` with `code` and `message`.
 
 All operation times are **integer project frames**, with half-open ranges
 `[start, end)`. At 25 fps, `[25, 50)` removes exactly one second. Discover track
@@ -117,6 +143,50 @@ project frames; files shorter than one frame are refused. Float, compressed,
 extensible WAV and RF64 are unsupported. Reimporting the same canonical path is
 refused. Import failures leave XML and revision unchanged.
 
+The supported WAV header has one classic 16/18-byte `fmt` chunk, one nonempty
+`data` chunk, coherent block alignment/byte rate and at most 1024 chunks.
+Additional chunks and odd-byte padding are handled; corrupted FourCC identifiers
+are rejected. Inspection reads headers without loading the whole audio payload.
+Import requires document version `1.1`, a single sequence and a non-self-closing
+`main_bin` playlist; its layout checks differ from timeline editing checks.
+
+## Validated behavior
+
+Evidence reviewed on **2026-10-15**. Automated checks establish the supported
+cases and explicit refusals; editor acceptance is specific to the synthetic
+fixtures, macOS Apple Silicon, Kdenlive 26.08.2 and MLT 7.43.0.
+
+| Area | Automated validation | Recorded native editor validation |
+| --- | --- | --- |
+| MCP lifecycle | Seven-tool discovery, open/info/validate, edit/import, Save As, close, schemas and errors; in-memory client and separate CLI process | The saved outputs described below were opened/saved separately |
+| Range removal | Disjoint cuts, blank/clip boundaries, unchanged other populated track, duration and source ranges | Three one-second cuts: timeline 250 → 175 frames; Kdenlive Save As retained all four resulting clip ranges |
+| Splitting | Duration/source continuity, preservation and invalid offsets | Used in the audio and music workflows below; no separate exhaustive editor matrix |
+| Clip volume/fades | Shared-source isolation, gain/fade limits, replacing/removing stacks, recognition of a native-saved managed stack | Editable Volume/Fade in/Fade out retained after Save As; generated/native audio measurements match |
+| Bin audio insertion/replacement | Empty track, blank fill, append, overlap refusal, source bounds, replacement and sequential insert/replace | Saved clip/source ranges retained; 440/880 Hz measurements confirm the intended overlap and replacement |
+| WAV import | PCM16 mono/stereo, headers/chunks, duration flooring, duplicate paths/aliases, unique IDs, preservation, rollback and busy sessions | Imported synthetic 880 Hz WAV retained in the bin with 250-frame duration after Kdenlive Save As; insertion/replacement measured |
+| XML preservation and transactions | Original bytes outside patches, comments/entities/CDATA/Unicode, unique IDs/references, full batch rollback, stale revisions and unsupported layouts | Native saves establish acceptance of these fixtures; the editor itself rewrites XML |
+| Files and sessions | Allowed roots/symlinks, missing/forbidden media, UTF-8/size/session limits, changed original, exclusive save and racing saves | Native output can be reopened within the documented fixture scope |
+
+Measured acceptance results:
+
+- Cut rendering contains exactly **250 frames before and 175 after**, with audio.
+- In the volume/fade fixture, the unchanged section has RMS ratio **1**, the
+  -6 dB section approximately **0.501227**, and the fade windows approximately
+  **0.024111 / 0.043613**. Native-saved and generated audio match.
+- Music/import measurements detect 440 Hz before insertion, 440/880 Hz during
+  overlap and 880 Hz after replacement. The original project and imported WAV
+  remain unchanged; generated output lasts **250 frames / 10 seconds**.
+- Kdenlive Save As adds **one wrapper frame** in the documented audio/music
+  fixture, also observed in an unedited native control: the native render lasts
+  **10.04 seconds** while clip ranges still end at frame 250. This is a known
+  evidence limit, not proof of correct durations for arbitrary projects.
+
+Rendering through MLT and opening/saving through the editor are separate checks.
+The scripts do not automate the GUI. Full provenance, native copy paths and
+reports are recorded in [verification evidence](docs/verification.md) and
+[fixture provenance](tests/fixtures/README.md); local `.artifacts/` reports are
+not distributed with the repository.
+
 ## Compatibility and limits
 
 - Editing currently supports document version `1.1`, one sequence, two playlists
@@ -125,7 +195,9 @@ refused. Import failures leave XML and revision unchanged.
   locked tracks and unmodeled track timing are explicitly refused.
 - Unrelated XML spans remain unchanged, including unknown properties and editor
   metadata. This does not prove compatibility with every Kdenlive feature.
-- Files must be UTF-8 and at most 16 MiB. There are at most 32 open sessions.
+- Files must be UTF-8 and at most 16 MiB. The XML parser is bounded to 128 levels
+  and 200,000 nodes and refuses DTDs, duplicate IDs and broken modeled references.
+  There are at most 32 open sessions.
 - Saving requires recognized local media within allowed roots. Relative media
   require an absolute XML `root`; ambiguous relative roots are refused.
 - The original is retained. Saving checks for external source changes, writes a
@@ -139,6 +211,9 @@ refused. Import failures leave XML and revision unchanged.
   over MCP and live editor control are not implemented yet. Temporal cuts refuse
   affected clip effects; replacement requires an effect-free target.
 - Linux and Windows native editor compatibility has not been verified.
+- Creating projects from scratch, video import, dedicated video/effect/transition
+  operations, multiple-sequence editing and automatic narration generation are
+  not implemented. Generic playlist cut tests are not native video acceptance.
 
 ## Verification and development
 
@@ -157,6 +232,14 @@ Scripts write projects, rendered media, logs and reports under `.artifacts/`.
 To measure a previously saved native import copy, run
 `pnpm test:music /absolute/path/to/import-roundtrip.kdenlive`. Reopening the
 copy in Kdenlive is a separate manual check. Normal tests do not require Kdenlive.
+
+During this README update on 2026-10-15, `check` (105 tests, type checking and
+build), `test:stdio`, `test:native`, `test:audio` and `test:music` all passed.
+The music run measured the previously native-saved import copy documented in
+[verification evidence](docs/verification.md). No new GUI open/save was performed.
+
+The CI workflow configures Ubuntu/macOS with Node.js 24 for `check` and
+`test:stdio`; the recorded evidence is local, with no confirmed remote CI run.
 
 - [Research and alternatives](docs/research.md)
 - [Design and scope](docs/design.md)
