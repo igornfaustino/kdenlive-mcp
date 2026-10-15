@@ -180,3 +180,12 @@ it("imports stereo without accepting sub-frame media", async () => {
   );
   expect(workspace.info(sessionId).revision).toBe(1);
 });
+it.each([0, 8, 12, 36])(
+  "rejects non-ASCII FourCC corruption at byte %i",
+  async (offset) => {
+    const corrupt = Buffer.from(tone);
+    corrupt[offset] = corrupt[offset]! | 0x80;
+    await writeFile(path, corrupt);
+    await expect(inspectWave(path)).rejects.toThrow();
+  },
+);

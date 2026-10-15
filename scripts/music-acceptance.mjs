@@ -9,9 +9,8 @@ import {
 import { resolve, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { randomUUID } from "node:crypto";
-import { Workspace, Project } from "../dist/index.js";
-import { parseXml, raw, escapeXml } from "../dist/core/xml.js";
+import { Workspace, Project, toFrames } from "../dist/index.js";
+import { parseXml, property, children, escapeXml } from "../dist/core/xml.js";
 import { pcm } from "./pcm.mjs";
 
 const execute = promisify(execFile);
@@ -27,34 +26,26 @@ for (let i = 0; i < audio.samples.length / 2; i++)
     i * 2,
   );
 await writeFile(join(folder, "music.wav"), wave);
-let source = (
+const source = (
   await readFile("tests/fixtures/native-26.08.2.kdenlive", "utf8")
 ).replace('root="."', `root="${escapeXml(folder)}"`);
-const doc = parseXml(source);
-let music = raw(doc, doc.ids.get("chain1"))
-  .replace('id="chain1"', 'id="music_bin"')
-  .replace('name="kdenlive:id">4<', 'name="kdenlive:id">5<')
-  .replaceAll("tone.wav", "music.wav")
-  .replace(
-    /(<property name="kdenlive:control_uuid">).*?(<\/property>)/,
-    `$1{${randomUUID()}}$2`,
-  )
-  .replace(/\s*<property name="kdenlive:file_hash">.*?<\/property>/, "");
-source = source.replace(
-  '<playlist id="main_bin">',
-  `${music}\n<playlist id="main_bin"><entry producer="music_bin" in="0" out="249"/>`,
-);
 await writeFile(join(folder, "original.kdenlive"), source);
 const workspace = await Workspace.create([folder]);
 const { sessionId } = await workspace.open(join(folder, "original.kdenlive"));
-workspace.apply(sessionId, 0, [
+const imported = await workspace.importAudio(
+  sessionId,
+  0,
+  join(folder, "music.wav"),
+);
+assert.equal(imported.durationFrames, 250);
+workspace.apply(sessionId, 1, [
   { type: "split_clip", clipId: "playlist2:0", offset: 125 },
 ]);
-workspace.apply(sessionId, 1, [
+workspace.apply(sessionId, 2, [
   {
     type: "insert_audio_clip",
     trackId: "tractor0",
-    sourceId: "music_bin",
+    sourceId: imported.sourceId,
     at: 25,
     sourceIn: 0,
     sourceOut: 100,
@@ -62,11 +53,11 @@ workspace.apply(sessionId, 1, [
   {
     type: "replace_audio_clip",
     clipId: "playlist2:1",
-    sourceId: "music_bin",
+    sourceId: imported.sourceId,
     sourceIn: 125,
   },
 ]);
-await workspace.saveAs(sessionId, 2, join(folder, "music.kdenlive"));
+await workspace.saveAs(sessionId, 3, join(folder, "music.kdenlive"));
 const melt =
   process.env.MELT_PATH ??
   (process.platform === "darwin"
@@ -79,6 +70,20 @@ const projects = {
 if (process.argv[2]) {
   projects.roundtrip = resolve(process.argv[2]);
   const info = new Project(await readFile(projects.roundtrip, "utf8")).info();
+  const native = parseXml(await readFile(projects.roundtrip, "utf8"));
+  const binMusic = info.media.find(
+    (m) => m.inProjectBin && m.resource.endsWith("music.wav"),
+  );
+  assert.ok(binMusic, "Imported media must remain in the native bin");
+  const binEntry = children(native.ids.get("main_bin"), "entry").find(
+    (e) => e.attributes.producer === binMusic.id,
+  );
+  assert.ok(binEntry, "Imported media must retain its native bin entry");
+  assert.equal(toFrames(binEntry.attributes.out, info.fps) + 1, 250);
+  assert.equal(
+    toFrames(property(native.ids.get(binMusic.id), "length"), info.fps),
+    250,
+  );
   const tracks = info.tracks
     .filter((t) => t.clips.length)
     .map((t) => t.clips.map((c) => [c.start, c.end, c.sourceIn, c.sourceOut]));
