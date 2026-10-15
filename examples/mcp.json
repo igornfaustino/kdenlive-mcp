@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "kdenlive": {
+      "command": "/absolute/path/to/node",
+      "args": [
+        "/absolute/path/to/kdenlive-mcp/dist/cli.js",
+        "--root",
+        "/absolute/path/to/project-folder"
+      ]
+    }
+  }
+}

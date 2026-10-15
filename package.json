@@ -1,0 +1,37 @@
+{
+  "name": "kdenlive-project-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Preservation-first editing of existing Kdenlive projects over MCP",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.17.0",
+  "bin": {
+    "kdenlive-project-mcp": "dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "start": "node dist/cli.js",
+    "test:native": "pnpm build && node scripts/native-acceptance.mjs",
+    "test:stdio": "pnpm build && node scripts/stdio-acceptance.mjs",
+    "test:audio": "pnpm build && node scripts/audio-acceptance.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "saxes": "^6.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
