@@ -138,3 +138,51 @@ describe("music from project bin", () => {
     ).toThrow(/effect/i);
   });
 });
+
+it.each([
+  [
+    "source links",
+    fixture.replace(
+      '<chain id="chain0" out="00:00:09.960">',
+      '<chain id="chain0" out="00:00:09.960"><link><property name="mlt_service">timeremap</property></link>',
+    ),
+  ],
+  [
+    "identity comments",
+    fixture.replace(
+      '<property name="kdenlive:id">4</property>\n  </entry>',
+      '<property name="kdenlive:id">4<!--keep--></property>\n  </entry>',
+    ),
+  ],
+])("refuses replacement that discards unknown %s", (_, input) => {
+  const project = new Project(input);
+  expect(() =>
+    project.apply(0, [
+      {
+        type: "replace_audio_clip",
+        clipId: "playlist2:0",
+        sourceId: "chain1",
+        sourceIn: 0,
+      },
+    ]),
+  ).toThrow();
+  expect(project.xml).toBe(input);
+});
+
+it("can replace a clip that was just inserted", () => {
+  const project = new Project(fixture);
+  project.apply(0, [insert]);
+  const clip = project.info().tracks.find((t) => t.id === "tractor0")!
+    .clips[0]!;
+  project.apply(1, [
+    {
+      type: "replace_audio_clip",
+      clipId: clip.id,
+      sourceId: "chain1",
+      sourceIn: 100,
+    },
+  ]);
+  expect(
+    project.info().tracks.find((t) => t.id === "tractor0")!.clips[0],
+  ).toMatchObject({ start: 25, end: 125, sourceIn: 100, sourceOut: 200 });
+});

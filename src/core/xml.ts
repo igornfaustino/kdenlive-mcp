@@ -77,7 +77,7 @@ export function parseXml(source: string): XmlDocument {
     node.end = parser.position;
     node.closeStart = node.selfClosing
       ? node.openEnd
-      : source.lastIndexOf("</", node.end);
+      : source.lastIndexOf("</", node.end - 1);
   });
   parser.write(source).close();
   const root = nodes[0];

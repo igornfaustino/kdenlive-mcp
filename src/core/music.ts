@@ -178,7 +178,9 @@ export function replaceAudioClip(
   const clip = track.clips.find((c) => c.id === operation.clipId)!;
   requireCondition(
     clip.node.children.every((n) => n.name === "property") &&
-      children(model.doc.ids.get(clip.producerId)!, "filter").length === 0,
+      model.doc.ids
+        .get(clip.producerId)!
+        .children.every((n) => n.name === "property"),
     "UNSUPPORTED_EFFECT",
     "Remove clip effects before replacing its source",
   );
@@ -203,7 +205,9 @@ export function replaceAudioClip(
   ];
   if (binId[0]) {
     requireCondition(
-      !binId[0].selfClosing && binId[0].children.length === 0,
+      !binId[0].selfClosing &&
+        binId[0].children.length === 0 &&
+        !/<!--|<\?|<!\[CDATA\[/.test(raw(model.doc, binId[0])),
       "UNSUPPORTED_ENTRY",
       "Unsupported bin identity metadata",
     );
